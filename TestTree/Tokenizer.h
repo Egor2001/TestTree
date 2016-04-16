@@ -15,9 +15,9 @@ using std::map;
 class EGLtokenizer
 {
 public:
-    EGLtokenizer(const map<string, double*>&   variable_map_set = {}, 
-                 const map<string, EGLfncPtr>& function_map_set = {},
-                 const map<string, double>&    constant_map_set = {}): 
+    EGLtokenizer(const map<string, double*>&   variable_map_set = map<string, double*>(), 
+                 const map<string, EGLfncPtr>& function_map_set = map<string, EGLfncPtr>(),
+                 const map<string, double>&    constant_map_set = map<string, double>()): 
         varconst_map_(), 
         function_map_(), 
         str_pos_(), 

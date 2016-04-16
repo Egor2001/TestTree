@@ -95,18 +95,9 @@ void EGLanalyzer::getValue(EGLnode& cur_node)
 
     switch (vec_pos_->type)
     {
-        case TOK_CONSTANT: 
-            getNumeric(cur_node); 
-        break;
-
-        case TOK_VARIABLE: 
-            getNumeric(cur_node); 
-        break;
-
-        case TOK_FUNCTION: 
-            getFunction(cur_node); 
-        break;
-
+        case TOK_CONSTANT: getNumeric (cur_node); break;
+        case TOK_VARIABLE: getNumeric (cur_node); break;
+        case TOK_FUNCTION: getFunction(cur_node); break;
         case TOK_OPERATOR: 
         {
             if (vec_pos_->value.operator_val != OP_TOK_OPENED_BRACKET) 
@@ -157,13 +148,13 @@ void EGLanalyzer::getMulDiv(EGLnode& cur_node)
 
         getPow(value_node);
 
-        if (cur_op_type == OP_TOK_MUL) cur_node. left()->push(value_node);
-        else                           cur_node.right()->push(value_node);
+        if (cur_op_type == OP_TOK_MUL) cur_node. left().push(value_node);
+        else                           cur_node.right().push(value_node);
     }
 
-    if      (cur_node. left()->child_lst().size() == 1) cur_node. left()->move(*cur_node. left()->left());
-    if      (cur_node.right()->child_lst().size() == 1) cur_node.right()->move(*cur_node.right()->left());
-    else if (cur_node.right()->child_lst().empty())     cur_node.         move(*cur_node. left());
+    if      (cur_node. left().child_vec_sz() == 1) cur_node. left().move(cur_node. left().left());
+    if      (cur_node.right().child_vec_sz() == 1) cur_node.right().move(cur_node.right().left());
+    else if (cur_node.right().child_vec().empty()) cur_node.        move(cur_node. left());
 }
 
 void EGLanalyzer::getSumSub(EGLnode& cur_node)
@@ -184,14 +175,14 @@ void EGLanalyzer::getSumSub(EGLnode& cur_node)
         vec_pos_++;
 
         getMulDiv(value_node);
-        
-        if (cur_op_type == OP_TOK_SUM) cur_node. left()->push(value_node);
-        else                           cur_node.right()->push(value_node);
+
+        if (cur_op_type == OP_TOK_SUM) cur_node. left().push(value_node);
+        else                           cur_node.right().push(value_node);
     }
 
-    if      (cur_node. left()->child_lst().size() == 1) cur_node. left()->move(*cur_node. left()->left());
-    if      (cur_node.right()->child_lst().size() == 1) cur_node.right()->move(*cur_node.right()->left());
-    else if (cur_node.right()->child_lst().empty())     cur_node.         move(*cur_node. left());
+    if      (cur_node. left().child_vec_sz() == 1) cur_node. left().move(cur_node. left().left());
+    if      (cur_node.right().child_vec_sz() == 1) cur_node.right().move(cur_node.right().left());
+    else if (cur_node.right().child_vec().empty()) cur_node.        move(cur_node. left());
 }
 
     

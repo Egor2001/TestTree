@@ -50,7 +50,7 @@ struct EGLtoken
     EGLtoken                     (): type (TOK_INVALID), value() {}
     EGLtoken(EGLtokenType type_set): type(type_set), value() {}
 
-    ~EGLtoken () { type = TOK_INVALID; value = {}; }
+    ~EGLtoken () { type = TOK_INVALID; value = EGLtokenValue(); }
 };
 
 bool operator<(const EGLtoken& op1, const EGLtoken& op2)
