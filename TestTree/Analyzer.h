@@ -24,8 +24,8 @@ public:
     void operator()(const vector<EGLtoken> tok_vec, EGLnode& root_node);
     
 private:
-    EGLanalyzer           (const EGLanalyzer& set) {}
-    EGLanalyzer& operator=(const EGLanalyzer& set) { return EGLanalyzer(); }
+    EGLanalyzer          (const EGLanalyzer& set) {}
+    EGLanalyzer operator=(const EGLanalyzer& set) { return EGLanalyzer(set); }
 
     void getNumeric (EGLnode& cur_node);
     void getBracket (EGLnode& cur_node);
@@ -152,9 +152,7 @@ void EGLanalyzer::getMulDiv(EGLnode& cur_node)
         else                           cur_node.right().push(value_node);
     }
 
-    if      (cur_node. left().child_vec_sz() == 1) cur_node. left().move(cur_node. left().left());
-    if      (cur_node.right().child_vec_sz() == 1) cur_node.right().move(cur_node.right().left());
-    else if (cur_node.right().child_vec().empty()) cur_node.        move(cur_node. left());
+    egl_nodeSetOpt(cur_node);
 }
 
 void EGLanalyzer::getSumSub(EGLnode& cur_node)
@@ -180,9 +178,7 @@ void EGLanalyzer::getSumSub(EGLnode& cur_node)
         else                           cur_node.right().push(value_node);
     }
 
-    if      (cur_node. left().child_vec_sz() == 1) cur_node. left().move(cur_node. left().left());
-    if      (cur_node.right().child_vec_sz() == 1) cur_node.right().move(cur_node.right().left());
-    else if (cur_node.right().child_vec().empty()) cur_node.        move(cur_node. left());
+    egl_nodeSetOpt(cur_node);
 }
 
     

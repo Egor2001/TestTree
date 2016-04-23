@@ -1,12 +1,15 @@
 #pragma once
 
 #include "Node.h"
+#include "OperatorsOptimizer.h"
+#include "ConstantsOptimizer.h"
 
 #include <string>
 #include <stdexcept>
 
 using std::string;
 using std::logic_error;
+using std::invalid_argument;
 
 class EGLoptimizer
 {
@@ -18,18 +21,18 @@ public:
     void operator()(EGLnode& root_node) { optNode(root_node); }
 
 private:
-    EGLoptimizer           (const EGLoptimizer& set) {}
-    EGLoptimizer& operator=(const EGLoptimizer& set) { return EGLoptimizer(); }
+    EGLoptimizer          (const EGLoptimizer& set) {}
+    EGLoptimizer operator=(const EGLoptimizer& set) { return EGLoptimizer(set); }
 
-    void optNode (EGLnode& root_node);
-    void optOper (EGLnode& root_node);
-    void optEqual(EGLnode& root_node);
+    void optNode(EGLnode& root_node);
+    void optOper(EGLnode& root_node);
 
-    void optBinSub  (EGLnode& root_node);
-    void optBinDiv  (EGLnode& root_node);
-    void optBinPow  (EGLnode& root_node);
-    void optGroupSum(EGLnode& root_node);
-    void optGroupMul(EGLnode& root_node);
+    void toFullFormat(EGLnode& node, EGLopType opType);
+    void toOptFormat (EGLnode& node);
+
+    void optGroupBinOp(EGLnode& root_node, EGLopType group_op_type);
+    void optConst     (EGLnode& root_node);
+    void optEqual     (EGLnode& root_node);
 };
 
 void EGLoptimizer::optNode(EGLnode& root_node)
@@ -46,242 +49,116 @@ void EGLoptimizer::optOper(EGLnode& root_node)
 
     switch (root_node.token().value.operator_val)
     {
-        case OP_UNARY_PLUS: root_node.move(*root_node.left()); break;
+        case OP_UNARY_PLUS: 
+        {
+            root_node.move(root_node.left()); 
+        }
+        break;
+
         case OP_UNARY_MINUS:
         {
-            if (root_node.left()->token().type == TOK_CONSTANT)
+            if (root_node.left().token().type == TOK_CONSTANT)
             {
-                root_node.left()->token().value.constant_val *= -1;
-                root_node.move(*root_node.left());
+                root_node.left().token().value.constant_val *= -1;
+                root_node.move(root_node.left());
             }
         }
         break;
         
-        case OP_BINARY_SUB: optBinSub  (root_node); break;
-        case OP_BINARY_DIV: optBinDiv  (root_node); break;
-        case OP_BINARY_POW: optBinPow  (root_node); break;
-        case OP_GROUP_SUM:  optGroupSum(root_node); break;
-        case OP_GROUP_MUL:  optGroupMul(root_node); break;
-
+        case OP_GROUP_SUM:  
+        case OP_BINARY_SUB: optGroupBinOp(root_node, OP_GROUP_SUM); break;
+        case OP_GROUP_MUL:  
+        case OP_BINARY_DIV: optGroupBinOp(root_node, OP_GROUP_MUL); break;
+        case OP_BINARY_POW: break;
+        
         default: throw logic_error("Invalid operator type"); break;
     }
 }
 
+void EGLoptimizer::toFullFormat(EGLnode& node, EGLopType opType)
+{
+    if (node.token().type               != TOK_OPERATOR ||
+        node.token().value.operator_val != opType)
+        node.set_as_parent(OperatorToken  (opType));
+}
+
+void EGLoptimizer::toOptFormat(EGLnode& node)
+{
+    if (node.token().type               != TOK_OPERATOR ||
+       (node.token().value.operator_val != OP_BINARY_SUB &&
+        node.token().value.operator_val != OP_BINARY_DIV)) 
+        throw invalid_argument("expected binary operator");
+
+    if      (node. left().child_lst().size() == 1) node. left().move(node. left().left());
+    if      (node.right().child_lst().size() == 1) node.right().move(node.right().left());
+    else if (node.right().child_lst().empty())     node.        move(node. left());
+}
+
+void EGLoptimizer::optGroupBinOp(EGLnode& root_node, EGLopType group_op_type)
+{
+    if (root_node.token().type != TOK_OPERATOR) 
+        throw logic_error("Expected operator");
+
+    if (group_op_type != OP_GROUP_SUM && 
+        group_op_type != OP_GROUP_MUL) throw logic_error("Expected group operator");
+
+    EGLopType bin_op_type = (group_op_type == OP_GROUP_SUM ? OP_BINARY_SUB : OP_BINARY_DIV);
+
+    if (root_node.token().value.operator_val == group_op_type)
+    {
+        root_node.set_as_parent(OperatorToken  (bin_op_type));
+        root_node.push         (OperatorToken(group_op_type));
+    }
+    else if (root_node.token().value.operator_val == bin_op_type)
+    {
+        toFullFormat(root_node. left(), group_op_type);
+        toFullFormat(root_node.right(), group_op_type);
+    }
+    else throw logic_error("Expected '+' or '-'");
+    
+    for (auto it  = root_node.left().child_lst().begin();
+              it != root_node.left().child_lst().  end();)
+    {
+        if ((*it)->token().type               != TOK_OPERATOR) { it++; continue; }
+        if ((*it)->token().value.operator_val == group_op_type)
+        {
+                 root_node.left().merge_with(*(*it)); (*it)->clear();
+            it = root_node.left().child_lst().erase(it);
+        }
+        else if ((*it)->token().value.operator_val == bin_op_type)
+        {
+            toFullFormat                ((*it)->right(), group_op_type);
+            root_node.right().merge_with((*it)->right());
+            toOptFormat                (*(*it)); 
+        }
+        else it++;
+    }
+    
+    for (auto it  = root_node.right().child_lst().begin();
+              it != root_node.right().child_lst().  end();)
+    {
+        if ((*it)->token().type               != TOK_OPERATOR) { it++; continue; }
+        if ((*it)->token().value.operator_val == group_op_type)
+        {
+                 root_node.right().merge_with    (*(*it)); (*it)->clear();
+            it = root_node.right().child_lst().erase(it);
+        }
+        else if ((*it)->token().value.operator_val == bin_op_type)
+        {
+            toFullFormat               ((*it)->right(), group_op_type);
+            root_node.left().merge_with((*it)->right());
+            toOptFormat               (*(*it));
+        }
+        else it++;
+    }
+    
+    toOptFormat(root_node);
+}
+
+void EGLoptimizer::optConst(EGLnode& root_node)
+{
+}
+
 void EGLoptimizer::optEqual(EGLnode& root_node)
 {
-}
-
-void EGLoptimizer::optBinSub(EGLnode& root_node)
-{
-    if (root_node.token().type               != TOK_OPERATOR || 
-        root_node.token().value.operator_val != OP_BINARY_SUB)
-        throw logic_error("Expected '-' operator");
-
-    if (root_node. left()->token().type == TOK_CONSTANT &&
-        root_node.right()->token().type == TOK_CONSTANT)
-    {
-        root_node.move(EGLnode(ConstantToken(root_node. left()->token().value.constant_val -
-                                             root_node.right()->token().value.constant_val)));
-        return;
-    }
-
-    if (root_node.left()->token().type               == TOK_OPERATOR &&
-        root_node.left()->token().value.operator_val == OP_BINARY_SUB)
-    {
-        if (root_node.right()->token().type               != TOK_OPERATOR ||
-            root_node.right()->token().value.operator_val != OP_GROUP_SUM)
-            root_node.right()->set_as_parent(OperatorToken  (OP_GROUP_SUM));
-
-        if (root_node.left()->right()->token().type               != TOK_OPERATOR ||
-            root_node.left()->right()->token().value.operator_val != OP_GROUP_SUM) 
-            root_node.left()->set_as_parent           (OperatorToken(OP_GROUP_SUM));
-
-        root_node.right()->child_lst().merge(std::move(root_node.left()->right()->child_lst()));
-        root_node. left()->                      move(*root_node.left()->left());
-    }
-
-    if (root_node.right()->token().type               == TOK_OPERATOR &&
-        root_node.right()->token().value.operator_val == OP_BINARY_SUB)
-    {
-        if (root_node.left()->token().type               != TOK_OPERATOR ||
-            root_node.left()->token().value.operator_val != OP_GROUP_SUM)
-            root_node.left()->set_as_parent(OperatorToken  (OP_GROUP_SUM));
-
-        if (root_node.right()->right()->token().type               != TOK_OPERATOR ||
-            root_node.right()->right()->token().value.operator_val != OP_GROUP_SUM) 
-            root_node.right()->set_as_parent           (OperatorToken(OP_GROUP_SUM));
-
-        root_node. left()->child_lst().merge(std::move(root_node.right()->right()->child_lst()));
-        root_node.right()->                      move(*root_node.right()-> left());
-    }
-
-    if      (root_node. left()->child_lst().size() == 1) root_node. left()->move(*root_node. left()->left());
-    if      (root_node.right()->child_lst().size() == 1) root_node.right()->move(*root_node.right()->left());
-    else if (root_node.right()->child_lst().empty())     root_node.         move(*root_node. left());
-}
-
-void EGLoptimizer::optBinDiv(EGLnode& root_node)
-{
-    if (root_node.token().type               != TOK_OPERATOR || 
-        root_node.token().value.operator_val != OP_BINARY_DIV)
-        throw logic_error("Expected '/' operator");
-    
-    if (root_node. left()->token().type == TOK_CONSTANT &&
-        root_node.right()->token().type == TOK_CONSTANT)
-    {
-        root_node.move(EGLnode(ConstantToken(root_node. left()->token().value.constant_val /
-                                             root_node.right()->token().value.constant_val)));
-        return;
-    }
-                                                                                                     
-    if (root_node.left()->token().type               == TOK_OPERATOR &&
-        root_node.left()->token().value.operator_val == OP_BINARY_DIV)
-    {
-        if (root_node.right()->token().type               != TOK_OPERATOR ||
-            root_node.right()->token().value.operator_val != OP_GROUP_MUL)
-            root_node.right()->set_as_parent(OperatorToken  (OP_GROUP_MUL));
-
-        if (root_node.left()->right()->token().type               != TOK_OPERATOR ||
-            root_node.left()->right()->token().value.operator_val != OP_GROUP_MUL) 
-            root_node.left()->set_as_parent           (OperatorToken(OP_GROUP_MUL));
-
-        root_node.right()->child_lst().merge(std::move(root_node.left()->right()->child_lst()));
-        root_node. left()->                      move(*root_node.left()-> left());
-    }
-
-    if (root_node.right()->token().type               == TOK_OPERATOR &&
-        root_node.right()->token().value.operator_val == OP_BINARY_DIV)
-    {
-        if (root_node.left()->token().type               != TOK_OPERATOR ||
-            root_node.left()->token().value.operator_val != OP_GROUP_MUL)
-            root_node.left()->set_as_parent(OperatorToken  (OP_GROUP_MUL));
-
-        if (root_node.right()->right()->token().type               != TOK_OPERATOR ||
-            root_node.right()->right()->token().value.operator_val != OP_GROUP_MUL) 
-            root_node.right()->set_as_parent           (OperatorToken(OP_GROUP_MUL));
-
-        root_node. left()->child_lst().merge(std::move(root_node.right()->right()->child_lst()));
-        root_node.right()->                      move(*root_node.right()-> left());
-    }
-
-    if      (root_node. left()->child_lst().size() == 1) root_node. left()->move(*root_node. left()->left());
-    if      (root_node.right()->child_lst().size() == 1) root_node.right()->move(*root_node.right()->left());
-    else if (root_node.right()->child_lst().empty())     root_node.         move(*root_node. left());
-}
-
-void EGLoptimizer::optBinPow(EGLnode& root_node)
-{
-    if (root_node.token().type               != TOK_OPERATOR || 
-        root_node.token().value.operator_val != OP_BINARY_POW)
-        throw logic_error("Expected '^' operator");
-    
-    if (root_node. left()->token().type == TOK_CONSTANT &&
-        root_node.right()->token().type == TOK_CONSTANT)
-    {
-        root_node.move(EGLnode(ConstantToken(pow(root_node. left()->token().value.constant_val, 
-                                                 root_node.right()->token().value.constant_val))));
-        return;
-    }
-}
-
-void EGLoptimizer::optGroupSum(EGLnode& root_node)
-{
-    if (root_node.token().type               != TOK_OPERATOR || 
-        root_node.token().value.operator_val != OP_GROUP_SUM)
-        throw logic_error("Expected '+' operator");
-
-    root_node.set_as_parent(OperatorToken(OP_BINARY_SUB));
-    root_node.push         (OperatorToken(OP_GROUP_SUM));
-
-    for (auto it  = root_node.left()->child_lst().begin(); 
-              it != root_node.left()->child_lst().end(); it++)
-    {
-        if ((*it)->token().type != TOK_OPERATOR) continue;
-
-        if ((*it)->token().value.operator_val == OP_GROUP_SUM)
-        {
-            root_node.left()->child_lst().merge(std::move((*it)->child_lst()));    
-            
-            (*it)->clear();
-            root_node.left()->child_lst().erase(it);
-        }
-        else if ((*it)->token().value.operator_val == OP_BINARY_SUB)
-        {
-            if ((*it)->left()->token().type               != TOK_OPERATOR ||
-                (*it)->left()->token().value.operator_val != OP_GROUP_SUM) 
-                (*it)->set_as_parent          (OperatorToken(OP_GROUP_SUM));
-
-            if ((*it)->right()->token().type               != TOK_OPERATOR ||
-                (*it)->right()->token().value.operator_val != OP_GROUP_SUM) 
-                (*it)->set_as_parent           (OperatorToken(OP_GROUP_SUM));
-
-            root_node. left()->child_lst().merge(std::move((*it)-> left()->child_lst()));
-            root_node.right()->child_lst().merge(std::move((*it)->right()->child_lst()));
-
-            (*it)->clear();
-            root_node.left()->child_lst().erase(it);
-        }
-        else if ((*it)->token().value.operator_val == OP_UNARY_PLUS)
-        {
-            root_node.left()->child_lst().merge(std::move((*it)->child_lst()));
-
-            (*it)->clear();
-            root_node.left()->child_lst().erase(it);
-        }
-        else if ((*it)->token().value.operator_val == OP_UNARY_MINUS)
-        {
-            root_node.right()->child_lst().merge(std::move((*it)->child_lst()));
-
-            (*it)->clear();
-            root_node.left()->child_lst().erase(it);
-        }
-    }
-
-    if      (root_node. left()->child_lst().size() == 1) root_node. left()->move(*root_node. left()->left());
-    if      (root_node.right()->child_lst().size() == 1) root_node.right()->move(*root_node.right()->left());
-    else if (root_node.right()->child_lst().empty())     root_node.         move(*root_node. left());
-}
-
-void EGLoptimizer::optGroupMul(EGLnode& root_node)
-{
-    if (root_node.token().type               != TOK_OPERATOR || 
-        root_node.token().value.operator_val != OP_GROUP_MUL)
-        throw logic_error("Expected '*' operator");
-
-    root_node.set_as_parent(OperatorToken(OP_BINARY_DIV));
-    root_node.push         (OperatorToken(OP_GROUP_MUL));
-
-    for (auto it  = root_node.left()->child_lst().begin();  
-              it != root_node.left()->child_lst().end(); it++)
-    {
-        if ((*it)->token().type != TOK_OPERATOR) continue;
-
-        if ((*it)->token().value.operator_val == OP_GROUP_MUL)
-        {
-            root_node.left()->child_lst().merge(std::move((*it)->child_lst()));    
-            
-            (*it)->clear();
-            root_node.left()->child_lst().erase(it);
-        }
-        else if ((*it)->token().value.operator_val == OP_BINARY_DIV)
-        {
-            if ((*it)->left()->token().type               != TOK_OPERATOR ||
-                (*it)->left()->token().value.operator_val != OP_GROUP_MUL) 
-                (*it)->set_as_parent          (OperatorToken(OP_GROUP_MUL));
-
-            if ((*it)->right()->token().type               != TOK_OPERATOR ||
-                (*it)->right()->token().value.operator_val != OP_GROUP_MUL) 
-                (*it)->set_as_parent           (OperatorToken(OP_GROUP_MUL));
-
-            root_node. left()->child_lst().merge(std::move((*it)-> left()->child_lst()));
-            root_node.right()->child_lst().merge(std::move((*it)->right()->child_lst()));
-
-            (*it)->clear();
-            root_node.left()->child_lst().erase(it);
-        }
-    }
-
-    if      (root_node. left()->child_lst().size() == 1) root_node. left()->move(*root_node. left()->left());
-    if      (root_node.right()->child_lst().size() == 1) root_node.right()->move(*root_node.right()->left());
-    else if (root_node.right()->child_lst().empty())     root_node.         move(*root_node. left());
 }

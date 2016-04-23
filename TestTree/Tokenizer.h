@@ -37,8 +37,8 @@ public:
     void operator()(const string& expr_str, vector<EGLtoken>& result_v);
     
 private:
-    EGLtokenizer           (const EGLtokenizer& set) {}
-    EGLtokenizer& operator=(const EGLtokenizer& set) { return EGLtokenizer(); }
+    EGLtokenizer          (const EGLtokenizer& set) {}
+    EGLtokenizer operator=(const EGLtokenizer& set) { return EGLtokenizer(set); }
     
     EGLtoken getNumber  ();
     EGLtoken getNamed   ();

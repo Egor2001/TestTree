@@ -115,6 +115,8 @@
   <ItemGroup>
     <ClInclude Include="Analyzer.h" />
     <ClInclude Include="Calculator.h" />
+    <ClInclude Include="ConstantsOptimizer.h" />
+    <ClInclude Include="OperatorsOptimizer.h" />
     <ClInclude Include="Node.h" />
     <ClInclude Include="Optimizer.h" />
     <ClInclude Include="Token.h" />

@@ -1,3 +1,7 @@
+#define _USE_MATH_DEFINES
+
+#include <cmath>
+
 #include "Node.h"
 #include "Tokenizer.h"
 #include "Analyzer.h"
@@ -7,20 +11,15 @@
 
 int main()
 {
-    /*EGLnode root_node;
-    root_node.set_as_parent(OperatorToken(OP_GROUP_SUM));
-    root_node.set_as_parent(OperatorToken(OP_BINARY_SUB));
-    root_node.push         (OperatorToken(OP_GROUP_SUM));
-*/
     double x = 100.0;
-    const double PI = 3.14159265;
-
+    
     EGLtokenizer tokenizer;
 
     tokenizer.set_variable("x", &x);
     tokenizer.set_function("sin", &sin);
     tokenizer.set_function("cos", &cos);
-    tokenizer.set_constant("PI", PI);
+    tokenizer.set_constant("PI", M_PI);
+    tokenizer.set_constant("E", M_E);
 
     EGLanalyzer analyzer;
     EGLoptimizer optimizer;
@@ -28,7 +27,7 @@ int main()
     vector<EGLtoken> tok_vec;
     EGLnode root_node;
 
-    tokenizer("x*(x/x)", tok_vec);
+    tokenizer("1+(2-3)-(4+5-6)-(-7)", tok_vec);
     analyzer(tok_vec, root_node);
     optimizer(root_node);
 
