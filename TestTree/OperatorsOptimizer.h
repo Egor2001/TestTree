@@ -12,6 +12,8 @@ using std::invalid_argument;
 class EGLoperatorsOptimizer
 {
 public:
+    EGLoperatorsOptimizer() {}
+    
     void optOperators(EGLnode& root_node);
 
 private:

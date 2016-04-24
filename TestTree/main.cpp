@@ -11,11 +11,13 @@
 
 int main()
 {
-    double x = 100.0;
+    double d = 100.0, a = 60.0, b = 30.0;
     
     EGLtokenizer tokenizer;
 
-    tokenizer.set_variable("x", &x);
+    tokenizer.set_variable("d", &d);
+    tokenizer.set_variable("a", &a);
+    tokenizer.set_variable("b", &b);
     tokenizer.set_function("sin", &sin);
     tokenizer.set_function("cos", &cos);
     tokenizer.set_constant("PI", M_PI);
@@ -27,7 +29,7 @@ int main()
     vector<EGLtoken> tok_vec;
     EGLnode root_node;
 
-    tokenizer("1+(2-3)-(4+5-6)-(-7)", tok_vec);
+    tokenizer("(PI*d^2)/4 + a*b*sin(PI/6)/2", tok_vec);
     analyzer(tok_vec, root_node);
     optimizer(root_node);
 

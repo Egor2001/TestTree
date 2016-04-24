@@ -12,6 +12,8 @@ using std::invalid_argument;
 class EGLconstantsOptimizer
 {
 public:
+    EGLconstantsOptimizer() {}
+
     void optConstants(EGLnode& root_node);
 
 private:
@@ -38,7 +40,7 @@ void EGLconstantsOptimizer::optConstants(EGLnode& root_node)
         }
         break;
 
-        case TOK_OPERATOR: optOperator(root_node);
+        case TOK_OPERATOR: optOperator(root_node); break;
         
         default: throw invalid_argument("invalid token type"); break;
     }
@@ -66,7 +68,7 @@ void EGLconstantsOptimizer::optGroupBinary(EGLnode& root_node, EGLopType group_o
     }
     else throw logic_error("Expected binary or group operator type");
     
-    double result_val = 0.0;
+    double result_val = (group_op_type == OP_GROUP_SUM ? 0.0 : 1.0f);
 
     for (auto it  = root_node.left().child_lst().begin();
               it != root_node.left().child_lst().  end();)
@@ -89,10 +91,11 @@ void EGLconstantsOptimizer::optGroupBinary(EGLnode& root_node, EGLopType group_o
         else if (group_op_type == OP_GROUP_MUL) result_val /= (*it)->token().value.constant_val;
         else throw logic_error("expected group operator");
 
-        (*it)->clear(); it = root_node.left().child_lst().erase(it);
+        (*it)->clear(); it = root_node.right().child_lst().erase(it);
     }
     
-    if (result_val != 0.0) root_node.left().push(ConstantToken(result_val));
+    if (result_val != (group_op_type == OP_GROUP_SUM ? 0.0 : 1.0f)) 
+        root_node.left().push(ConstantToken(result_val));
 
     egl_nodeSetOpt(root_node);
 }
